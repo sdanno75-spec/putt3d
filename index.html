@@ -159,6 +159,8 @@ body.compact .stage-bar .eyectl .btn{padding:5px 8px;font-size:12px}
 body.compact.gaming .legend{display:none}
 body.compact .chip{font-size:11.5px;padding:4px 8px}
 body.compact .chip.big{font-size:13px}
+.tabs .hand{margin-left:auto;align-self:center;padding:2px}
+.tabs .hand button{padding:5px 12px;font-size:12.5px;border:0;border-radius:7px;font-weight:700}
 .tabs{max-width:1440px;margin:0 auto;padding:4px 16px 0;display:flex;gap:6px}
 .tabs button{appearance:none;border:1px solid var(--line);background:#08180f;color:var(--muted);font:inherit;font-size:13.5px;font-weight:700;padding:9px 16px;border-radius:10px 10px 0 0;cursor:pointer}
 .tabs button.on{background:#1d4a31;color:var(--text);border-color:#2f6b49}
@@ -240,13 +242,14 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     <path d="M17 26V5l9 3.5-9 3.5"/>
   </svg>
   <div>
-    <h1>レフティー逆算ライン読み</h1>
-    <p>左打ち専用・3ステップ パッティングシミュレーター（リアル3D版・傾斜とスピードを物理計算）</p>
+    <h1 id="appTitle">レフティー逆算ライン読み</h1>
+    <p>左打ち・右打ち対応・3ステップ パッティングシミュレーター（リアル3D版・傾斜とスピードを物理計算）</p>
   </div>
 </header>
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="sim" class="on">シミュレーター</button>
   <button type="button" data-tab="game">ゲーム（ライン読み練習）</button>
+  <div class="seg hand" id="handSeg" aria-label="利き手"><button type="button" data-hand="L" class="on">左打ち</button><button type="button" data-hand="R">右打ち</button></div>
 </nav>
 
 <div class="layout">
@@ -372,9 +375,9 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     <div class="blk">
       <h2>グリーンの傾斜</h2>
       <div class="seg full" id="lineSeg">
-        <button type="button" data-line="hook">フック<small>左が高い</small></button>
+        <button type="button" data-line="hook">フック<small id="hookSide">左が高い</small></button>
         <button type="button" data-line="straight">ストレート<small>左右なし</small></button>
-        <button type="button" data-line="slice">スライス<small>右が高い</small></button>
+        <button type="button" data-line="slice">スライス<small id="sliceSide">右が高い</small></button>
       </div>
       <div class="sub">
         <div class="row"><span>横の傾斜</span><b id="vLat">-</b></div>
@@ -463,13 +466,13 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     </div>
 
     <div class="steps">
-      <div class="stepcard"><b><i style="background:var(--entry)"></i>ステップ1：入口を決める</b><p>傾斜とタッチで、カップの手前半分（3時〜6時〜9時）のどこから入るかが決まります。レフティーのフック（左が高い）は7〜8時、スライス（右が高い）は4〜5時が目安です。</p></div>
-      <div class="stepcard"><b><i style="background:var(--virtual)"></i>ステップ2：仮想カップをカップの真横に置く</b><p>「平らなら、ここに真っすぐ打つ」という点を、本物のカップの真横（同じ距離）に置きます。フックはカップの左、スライスはカップの右です。</p></div>
+      <div class="stepcard"><b><i style="background:var(--entry)"></i>ステップ1：入口を決める</b><p id="sc1Text">傾斜とタッチで、カップの手前半分（3時〜6時〜9時）のどこから入るかが決まります。レフティーのフック（左が高い）は7〜8時、スライス（右が高い）は4〜5時が目安です。</p></div>
+      <div class="stepcard"><b><i style="background:var(--virtual)"></i>ステップ2：仮想カップをカップの真横に置く</b><p id="sc2Text">「平らなら、ここに真っすぐ打つ」という点を、本物のカップの真横（同じ距離）に置きます。フックはカップの左、スライスはカップの右です。</p></div>
       <div class="stepcard"><b><i style="background:var(--apex)"></i>ステップ3：エイペックスを確認</b><p>仮想カップへ真っすぐ打ち出すと、ボールは減速しながら傾斜に負けて曲がり、いちばん膨らんだ点（頂点）を過ぎてから入口へ向かいます。下りは遅い球が長く傾斜を受けるので大きく曲がり、上りは曲がりが小さくなります。</p></div>
     </div>
   </aside>
 </div>
-<footer>v3.1.1（リアル3D版）</footer>
+<footer>v3.2.0（リアル3D版）</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -500,6 +503,25 @@ const st = {
 // ゲーム（ライン読み練習）の状態
 const game = { on: false, showAnswer: false, nums: true, clock: false, fixSpeed: true, hole: null, n: 0, putted: false, hist: [], snap: null };
 st.follow = true;      // 打ったらカメラがボールを追う
+// 左打ち（L）／右打ち（R）。物理は同じで、立つ側・パター・見え方・呼び方だけが変わる
+st.hand = (() => { try { return localStorage.getItem('putt-hand') === 'R' ? 'R' : 'L'; } catch (e) { return 'L'; } })();
+function hs() { return st.hand === 'L' ? 1 : -1; }
+// 横傾斜の呼び方：「左が高い」はレフティーにはフック、右打ちにはスライス
+function latText(L, digits) {
+  if (Math.abs(L) < 0.01) return '左右なし';
+  const v = digits ? Math.abs(L).toFixed(digits).replace(/0$/, '') : Math.abs(L);
+  return `${L > 0 ? '左' : '右'}が高い ${v}%（${L * hs() > 0 ? 'フック' : 'スライス'}）`;
+}
+function applyHand() {
+  const L = st.hand === 'L', name = L ? 'レフティー' : '右打ち';
+  document.getElementById('appTitle').textContent = `${name}逆算ライン読み`;
+  document.title = document.title.replace(/^(レフティー|右打ち)/, name);
+  document.getElementById('hookSide').textContent = L ? '左が高い' : '右が高い';
+  document.getElementById('sliceSide').textContent = L ? '右が高い' : '左が高い';
+  document.getElementById('sc1Text').textContent = `傾斜とタッチで、カップの手前半分（3時〜6時〜9時）のどこから入るかが決まります。${name}のフック（${L ? '左' : '右'}が高い）は${L ? '7〜8時' : '4〜5時'}、スライス（${L ? '右' : '左'}が高い）は${L ? '4〜5時' : '7〜8時'}が目安です。`;
+  document.getElementById('sc2Text').textContent = `「平らなら、ここに真っすぐ打つ」という点を、本物のカップの真横（同じ距離）に置きます。フックはカップの${L ? '左' : '右'}、スライスはカップの${L ? '右' : '左'}です。`;
+  document.querySelectorAll('#handSeg button').forEach(b => b.classList.toggle('on', b.dataset.hand === st.hand));
+}
 let read = null;      // 正しい読み
 let mine = null;      // 自分の読みでの結果
 let revealed = false;
@@ -707,17 +729,18 @@ function preset(name) {
   cam.mode = name === 'eye' ? 'eye' : 'orbit';
   eyeCtl.hidden = cam.mode !== 'eye';
   hint.textContent = cam.mode === 'eye' ? '左右ドラッグで顔の向き／ホイール・ピンチでズーム' : 'ドラッグで回転／ホイール・ピンチでズーム';
-  if (name === 'address') { camGoal.yaw = Math.PI / 2; camGoal.pitch = 0.8; camGoal.dist = d; }
+  if (name === 'address') { camGoal.yaw = hs() * Math.PI / 2; camGoal.pitch = 0.8; camGoal.dist = d; }
   if (name === 'behind') { camGoal.yaw = Math.PI; camGoal.pitch = 0.42; camGoal.dist = st.D * 0.75 + 2; }
   if (name === 'cup') { camGoal.yaw = 0; camGoal.pitch = 0.42; camGoal.dist = st.D * 0.75 + 2; }
-  if (name === 'top') { camGoal.yaw = Math.PI / 2; camGoal.pitch = 1.53; camGoal.dist = d * 0.95; }
+  if (name === 'top') { camGoal.yaw = hs() * Math.PI / 2; camGoal.pitch = 1.53; camGoal.dist = d * 0.95; }
   presetName = name;
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
 }
 function updateEyeCam() {
   cam.eyeS += (camGoal.eyeS - cam.eyeS) * 0.15;
   cam.eyeFov += (camGoal.eyeFov - cam.eyeFov) * 0.15;
-  const pos = { x: EYE.x, y: hgt(EYE.x, EYE.z) * EX + EYE.h, z: EYE.z };
+  const ez = EYE.z * hs();                                       // 右打ちはラインの反対側に立つ
+  const pos = { x: EYE.x, y: hgt(EYE.x, ez) * EX + EYE.h, z: ez };
   // 顔の向き：0 = ボールを真下に見る、1 = カップを見る
   const phiC = Math.atan2(st.D - EYE.x, EYE.h);
   const phi = clamp(cam.eyeS, 0, 1.15) * phiC;
@@ -727,7 +750,7 @@ function updateEyeCam() {
   const fl = Math.hypot(f.x, f.y, f.z); f = { x: f.x / fl, y: f.y / fl, z: f.z / fl };
   // 目のラインをターゲットラインと平行に保つ（画面の右＝カップ方向）
   const d = f.x;
-  let r = { x: 1 - d * f.x, y: -d * f.y, z: -d * f.z };
+  let r = { x: (1 - d * f.x) * hs(), y: -d * f.y * hs(), z: -d * f.z * hs() };   // 右打ちはカップが左に見える
   const rl = Math.hypot(r.x, r.y, r.z) || 1; r = { x: r.x / rl, y: r.y / rl, z: r.z / rl };
   const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
   C3 = { pos, f, r, u, F: (ch / 2) / Math.tan(cam.eyeFov * Math.PI / 360) };
@@ -1221,7 +1244,7 @@ function buildBalls() {
     g.fillStyle = '#f5f5f1'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#16161a'; g.fillRect(0, h / 2 - 3, w, 6);             // 赤道をぐるっと1周する線（アライメントライン）
     g.font = 'bold 44px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = '#1d4fb8'; g.fillText('LEFTY', w * 0.25, h * 0.36);
+    g.fillStyle = '#1d4fb8'; g.fillText('AIM', w * 0.25, h * 0.36);
     g.fillStyle = '#1d4fb8'; g.fillText('1', w * 0.75, h * 0.36);
   });
   const bumpC = texCanvas(1024, 512, (g, w, h) => {
@@ -1511,6 +1534,7 @@ function renderR3(now) {
   // パター
   R.putter.position.set(u.x * anim.off, hgt(0, 0) * EX, u.z * anim.off);
   R.putter.rotation.set(0, Math.atan2(-u.z, u.x), 0);
+  R.putter.scale.z = hs();                            // 右打ちはヒールとシャフトが反対側
   // カメラ（2Dの計算と完全に同じ視点）
   const c = R.camera;
   c.fov = 2 * Math.atan((ch / 2) / C3.F) * 180 / Math.PI;
@@ -1793,7 +1817,7 @@ function renderCompare() {
 function updateUi() {
   latRange.value = -st.L; longRange.value = st.U; distRange.value = st.D; stimpRange.value = st.stimp; overRange.value = Math.round(st.over * 100);
   aimRange.value = clamp(st.aimCups, -12, 12); autoAim.checked = st.auto;
-  $('vLat').textContent = Math.abs(st.L) < 0.01 ? '左右なし' : `${st.L > 0 ? '左' : '右'}が高い ${Math.abs(st.L).toFixed(2).replace(/0$/, '')}%（${st.L > 0 ? 'フック' : 'スライス'}）`;
+  $('vLat').textContent = latText(st.L, 2);
   $('vLong').textContent = Math.abs(st.U) < 0.01 ? '平ら' : `${st.U > 0 ? '上り' : '下り'} ${Math.abs(st.U).toFixed(2).replace(/0$/, '')}%`;
   $('vDist').textContent = `${st.D.toFixed(1)} m`;
   $('vStimp').textContent = `${st.stimp.toFixed(1)} ft（${stimpWord(st.stimp)}）`;
@@ -1803,7 +1827,7 @@ function updateUi() {
   $('aimNote').textContent = Math.abs(st.aimCups) < 0.05
     ? 'カップを直接狙います。'
     : `カップの真横（ボールから同じ ${st.D.toFixed(1)}m 先）の、カップ中心から${st.aimCups < 0 ? '左' : '右'}へ約${cm}cm（ボール約${(Math.abs(st.aimCups) * CUP_D / 0.04267).toFixed(1)}個分）。ここへ真っすぐ打ち出します。`;
-  const lt = st.L > 0.01 ? 'hook' : st.L < -0.01 ? 'slice' : 'straight';
+  const lt = st.L * hs() > 0.01 ? 'hook' : st.L * hs() < -0.01 ? 'slice' : 'straight';
   document.querySelectorAll('#lineSeg button').forEach(b => b.classList.toggle('on', b.dataset.line === lt));
 
   // 結果
@@ -1857,7 +1881,7 @@ document.querySelectorAll('#rateSeg button').forEach(b => b.addEventListener('cl
 }));
 autoAim.addEventListener('change', () => { st.auto = autoAim.checked; recompute(); });
 const LINE_PRESET = { hook: 2, straight: 0, slice: -2 };
-document.querySelectorAll('#lineSeg button').forEach(b => b.addEventListener('click', () => { st.L = LINE_PRESET[b.dataset.line]; recompute(); }));
+document.querySelectorAll('#lineSeg button').forEach(b => b.addEventListener('click', () => { st.L = LINE_PRESET[b.dataset.line] * hs(); recompute(); }));
 document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => preset(b.dataset.view)));
 $('zoomIn').addEventListener('click', () => zoomBy(1 / 1.2));
 $('zoomOut').addEventListener('click', () => zoomBy(1.2));
@@ -1904,7 +1928,7 @@ function nextHole() { game.n++; game.putted = false; game.last = null; game.hole
 function retryHole() { game.last = null; loadHole(game.hole, true); }
 
 function holeCond(h, nums) {
-  const lat = Math.abs(h.L) < 0.01 ? '左右なし' : `${h.L > 0 ? '左' : '右'}が高い ${Math.abs(h.L)}%（${h.L > 0 ? 'フック' : 'スライス'}）`;
+  const lat = latText(h.L, 0);
   const lon = Math.abs(h.U) < 0.01 ? '平ら' : `${h.U > 0 ? '上り' : '下り'} ${Math.abs(h.U)}%`;
   return nums ? `${h.D.toFixed(1)}m ／ ${lat} ／ ${lon} ／ ${h.stimp}ft` : `${h.D.toFixed(1)}m ／ 傾斜は画面で読む ／ ${h.stimp}ft`;
 }
@@ -1990,7 +2014,7 @@ $('gHistClose').addEventListener('click', () => document.body.classList.remove('
 
 function setTab(t) {
   const toGame = t === 'game';
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('#tabs [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   if (toGame === game.on) return;
   if (toGame) {
     game.snap = JSON.parse(JSON.stringify({ D: st.D, L: st.L, U: st.U, stimp: st.stimp, aimCups: st.aimCups, auto: st.auto, touchMode: st.touchMode, flatX: st.flatX, compare: st.compare, show: st.show }));
@@ -2008,12 +2032,23 @@ function setTab(t) {
   else { $('cmpOn').checked = st.compare; recompute(); }
   if (document.body.classList.contains('compact')) dock();
 }
-document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+document.querySelectorAll('#tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
 window.addEventListener('resize', () => { setCompact(); resize(); });
 if (mqCompact.addEventListener) mqCompact.addEventListener('change', setCompact);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(cv.parentElement);
 initR3();
+/* ---------- 左打ち／右打ちの切り替え ---------- */
+document.querySelectorAll('#handSeg button').forEach(b => b.addEventListener('click', () => {
+  st.hand = b.dataset.hand;
+  try { localStorage.setItem('putt-hand', st.hand); } catch (e) { /* 保存できなくても動く */ }
+  applyHand();
+  preset(presetName || 'eye');
+  updateUi();
+  if (game.on) renderGame();
+}));
+applyHand();
+
 /* ---------- タッチ操作の改善（iPhone対策） ---------- */
 // ページ全体のピンチ拡大を止める（グリーン画面のピンチズームは別に動く）
 ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
