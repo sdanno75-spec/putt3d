@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>レフティー逆算ライン リアル</title>
 <style>
 :root{
@@ -19,6 +19,16 @@
   --apex:#ff7aa8;
 }
 *{box-sizing:border-box}
+/* ---- スマホ（特にiPhone）で、ダブルタップ拡大・長押しの虫めがねを出さない ---- */
+html{-webkit-text-size-adjust:100%;touch-action:manipulation}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+button,input,label,select{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+@media (pointer:coarse){
+  input[type=range]{height:38px}
+  input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-11px}
+  input[type=range]::-moz-range-thumb{width:24px;height:24px}
+  .btn.step{min-width:48px}
+}
 html,body{margin:0}
 body{
   background:radial-gradient(1200px 600px at 50% -10%,#143524 0%,var(--bg) 60%) fixed,var(--bg);
@@ -70,6 +80,9 @@ canvas:active{cursor:grabbing}
 .h-val{margin-left:auto;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:0}
 .mini-btn{margin-left:auto;padding:3px 10px;font-size:11.5px;letter-spacing:0}
 #gHistBtn,.g-hist-head{display:none}
+.btn.toggle{color:var(--muted);background:#08180f;font-size:12.5px;padding:7px 10px;white-space:nowrap}
+.btn.toggle.on{color:#062012;background:#9df0b9;border-color:#9df0b9;font-weight:700}
+body.compact .btn.toggle{padding:5px 8px;font-size:12px}
 body.gaming #rateSeg{display:none}
 
 /* ---- スマホ横画面 ---- */
@@ -100,7 +113,15 @@ body.compact .g-cond{font-size:12px}
 body.compact #gBlkAim{order:1}
 body.compact #gBlkTouch{order:2}
 body.compact #gBlkQ{order:3}
-body.compact #gameCard{order:4}
+body.compact #gameCard{order:0;margin:0;padding:7px 9px}
+body.compact #gameCard .g-top{flex-wrap:nowrap;align-items:flex-start}
+body.compact #gameCard .g-no{display:block;font-size:12px;margin:0}
+body.compact #gameCard .g-cond{font-size:11.5px;line-height:1.4}
+body.compact #gameCard .g-score{font-size:11px;white-space:nowrap}
+body.compact #gameCard .g-res{font-size:13px;margin-top:3px;line-height:1.35}
+body.compact #gameCard .g-ans{font-size:10.5px;line-height:1.45;margin-top:2px}
+body.compact .g-stats .s3{display:none}
+body.compact #gSetSlot .g-toggles{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12.5px;margin:2px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 body.compact #gBlkStats{order:5}
 body.compact #simReadout,body.compact #cmpBox{order:10}
 body.compact .panel .eyectl{order:11}
@@ -132,7 +153,6 @@ body.compact .canvas-wrap .g-top{flex-wrap:nowrap}
 body.compact .canvas-wrap .g-res{font-size:13px;margin-top:2px}
 body.compact .canvas-wrap .g-ans{font-size:11px;line-height:1.45;margin-top:2px}
 body.compact.gaming .hud{top:auto;bottom:8px}
-body.compact.gaming .hud .chip.big{display:none}
 body.compact .stage-bar .eyectl{margin:0;flex:none;gap:4px}
 body.compact .stage-bar .eyectl .mini{display:none}
 body.compact .stage-bar .eyectl .btn{padding:5px 8px;font-size:12px}
@@ -246,6 +266,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
           <button type="button" data-view="cup">カップ側</button>
           <button type="button" data-view="top">真上</button>
         </div>
+        <button type="button" class="btn toggle on" id="followBtn" aria-pressed="true">ボールを追う</button>
         <div class="seg zoom">
           <button type="button" id="zoomOut" aria-label="ズームアウト">−</button>
           <button type="button" id="zoomIn" aria-label="ズームイン">＋</button>
@@ -304,10 +325,12 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
         <button type="button" class="btn primary" id="gNext">次のホール</button>
         <button type="button" class="btn" id="gRetry">もう一度</button>
       </div>
-      <div class="checks sub g-toggles">
+      <div class="checks sub g-toggles" id="gToggles">
         <label><input autocomplete="off" type="checkbox" id="gAnswer">正しいライン</label>
         <label><input autocomplete="off" type="checkbox" id="gNums" checked>傾斜の数値</label>
         <label><input autocomplete="off" type="checkbox" id="gFlow" checked>傾斜の矢印</label>
+        <label><input autocomplete="off" type="checkbox" id="gClock">時計（入口）</label>
+        <label><input autocomplete="off" type="checkbox" id="gFix" checked>速さ 9.5ft 固定</label>
       </div>
       <p class="note">傾斜はよくあるゆるい傾斜（0.5〜1.5%）が多めに、しっかりした傾斜（2〜3%）がときどき、きつい傾斜（3.5%以上）がたまに出ます。数値を隠すと、画面の矢印と等高線だけで読む練習になります。</p>
     </div>
@@ -337,7 +360,8 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
       <h2>成績<button type="button" class="btn mini-btn" id="gHistBtn">一覧</button></h2>
       <div class="g-stats" id="gStats">-</div>
       <div class="g-hist-wrap" id="gHistWrap">
-        <div class="g-hist-head">成績一覧<button type="button" class="btn mini-btn" id="gHistClose">閉じる</button></div>
+        <div class="g-hist-head">設定と成績一覧<button type="button" class="btn mini-btn" id="gHistClose">閉じる</button></div>
+        <div id="gSetSlot"></div>
         <table class="g-hist" id="gHist"></table>
       </div>
       <div class="sub g-reset"><button type="button" class="btn" id="gReset">成績をリセット</button></div>
@@ -445,7 +469,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     </div>
   </aside>
 </div>
-<footer>v3.0.0（リアル3D版）</footer>
+<footer>v3.1.1（リアル3D版）</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -474,7 +498,8 @@ const st = {
   touchMode: 'auto', flatX: 5
 };
 // ゲーム（ライン読み練習）の状態
-const game = { on: false, showAnswer: false, nums: true, hole: null, n: 0, putted: false, hist: [], snap: null };
+const game = { on: false, showAnswer: false, nums: true, clock: false, fixSpeed: true, hole: null, n: 0, putted: false, hist: [], snap: null };
+st.follow = true;      // 打ったらカメラがボールを追う
 let read = null;      // 正しい読み
 let mine = null;      // 自分の読みでの結果
 let revealed = false;
@@ -708,7 +733,50 @@ function updateEyeCam() {
   C3 = { pos, f, r, u, F: (ch / 2) / Math.tan(cam.eyeFov * Math.PI / 360) };
 }
 function updateCam() {
-  if (cam.mode === 'eye') { updateEyeCam(); return; }
+  if (cam.mode === 'eye') updateEyeCam(); else updateOrbitCam();
+  applyFollow();
+}
+// ボールを追うカメラ：ボールの少し後ろ・少し上から、進む方向を見る
+const follow = { w: 0, pos: null, look: null, dir: null };
+function applyFollow() {
+  const live = anim.phase === 'roll' || (anim.phase === 'rest' && performance.now() - anim.doneT < 1800);
+  const active = st.follow && live && anim.balls.length > 0;
+  follow.w += ((active ? 1 : 0) - follow.w) * 0.06;
+  if (follow.w < 0.003) { follow.w = 0; follow.pos = follow.dir = null; return; }
+  if (!anim.balls.length) return;
+  const b = anim.balls[Math.min(1, anim.balls.length - 1)];          // 比較中は真ん中の球
+  const s = ballState(b), pts = b.sim.pts;
+  const i = anim.phase === 'rest' ? pts.length - 1 : clamp(Math.floor((anim.t - (TB + TD)) * 60), 0, pts.length - 1);
+  const j = Math.min(pts.length - 1, i + 10), k = Math.max(0, i - 10);
+  let dx = pts[j].x - pts[k].x, dz = pts[j].z - pts[k].z, dl = Math.hypot(dx, dz);
+  if (dl < 1e-4) { dx = follow.dir ? follow.dir.x : 1; dz = follow.dir ? follow.dir.z : 0; dl = Math.hypot(dx, dz) || 1; }
+  dx /= dl; dz /= dl;
+  if (!follow.dir) follow.dir = { x: dx, z: dz };
+  follow.dir.x += (dx - follow.dir.x) * 0.06; follow.dir.z += (dz - follow.dir.z) * 0.06;
+  const fl = Math.hypot(follow.dir.x, follow.dir.z) || 1, ux = follow.dir.x / fl, uz = follow.dir.z / fl;
+  const gy = hgt(s.x, s.z) * EX;
+  const tp = { x: s.x - ux * 1.5, y: gy + 0.6, z: s.z - uz * 1.5 };
+  const tl = { x: s.x + ux * 1.2, y: gy, z: s.z + uz * 1.2 };
+  if (!follow.pos) { follow.pos = tp; follow.look = tl; }
+  else {
+    for (const k2 of ['x', 'y', 'z']) { follow.pos[k2] += (tp[k2] - follow.pos[k2]) * 0.18; follow.look[k2] += (tl[k2] - follow.look[k2]) * 0.18; }
+  }
+  // いつもの視点となめらかに混ぜる
+  const w = follow.w * follow.w * (3 - 2 * follow.w);
+  const bl = { x: C3.pos.x + C3.f.x * 4, y: C3.pos.y + C3.f.y * 4, z: C3.pos.z + C3.f.z * 4 };
+  const pos = { x: lerp(C3.pos.x, follow.pos.x, w), y: lerp(C3.pos.y, follow.pos.y, w), z: lerp(C3.pos.z, follow.pos.z, w) };
+  const look = { x: lerp(bl.x, follow.look.x, w), y: lerp(bl.y, follow.look.y, w), z: lerp(bl.z, follow.look.z, w) };
+  let f = { x: look.x - pos.x, y: look.y - pos.y, z: look.z - pos.z };
+  const fn = Math.hypot(f.x, f.y, f.z) || 1; f = { x: f.x / fn, y: f.y / fn, z: f.z / fn };
+  // 上方向も、いつもの視点の上方向から水平な上方向へ混ぜる
+  const upv = { x: lerp(C3.u.x, 0, w), y: lerp(C3.u.y, 1, w), z: lerp(C3.u.z, 0, w) };
+  let r = { x: f.y * upv.z - f.z * upv.y, y: f.z * upv.x - f.x * upv.z, z: f.x * upv.y - f.y * upv.x };
+  const rn = Math.hypot(r.x, r.y, r.z) || 1; r = { x: r.x / rn, y: r.y / rn, z: r.z / rn };
+  const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
+  const Fchase = (ch / 2) / Math.tan(25 * Math.PI / 180);
+  C3 = { pos, f, r, u, F: lerp(C3.F, Fchase, w) };
+}
+function updateOrbitCam() {
   // なめらかに目標へ
   let dy = camGoal.yaw - cam.yaw;
   while (dy > Math.PI) dy -= Math.PI * 2;
@@ -1600,7 +1668,9 @@ function dock() {
   const stageEl = document.querySelector('.stage'), wrapEl = document.querySelector('.canvas-wrap'), barEl = document.querySelector('.stage-bar');
   const legendEl = document.querySelector('.legend');
   if (compact) {
-    wrapEl.appendChild($('gameCard'));                 // 問題・結果は画面の上に重ねる
+    $('gamePanel').prepend($('gameCard'));             // 問題・結果は右パネルのいちばん上（スクロールしない）
+    $('gSetSlot').appendChild($('gToggles'));          // 切り替えは「成績・設定」の画面へ
+    $('gHistBtn').textContent = '成績・設定';
     $('simPanel').prepend($('cmpBox'));
     $('simPanel').prepend($('simReadout'));
     $('simPanel').appendChild(legendEl);
@@ -1609,6 +1679,8 @@ function dock() {
   } else {
     barEl.appendChild(puttBtn); puttBtn.classList.remove('floating');
     [eyeCtl, legendEl, $('gameCard'), $('simReadout'), $('cmpBox')].forEach(el => stageEl.appendChild(el));
+    $('gBlkQ').insertBefore($('gToggles'), $('gBlkQ').querySelector('.note'));
+    $('gHistBtn').textContent = '一覧';
     document.body.classList.remove('histopen');
   }
   // 横画面では視点ボタンを短い名前に
@@ -1811,7 +1883,7 @@ function randomHole() {
     const D = qz(pickW([[20, () => rnd(2, 3)], [50, () => rnd(3, 6)], [22, () => rnd(6, 9)], [8, () => rnd(9, 12)]]), 0.5);
     const g = pickW([[75, () => rnd(0.5, 1.5)], [20, () => rnd(2, 3)], [5, () => rnd(3.5, 4)]]);   // 傾斜の強さ（%）
     const ang = Math.random() * Math.PI * 2;                                                       // 傾斜の向き
-    const stimp = qz(pickW([[80, () => rnd(8.5, 10.5)], [10, () => rnd(7.5, 8.5)], [10, () => rnd(10.5, 12)]]), 0.5);
+    const stimp = game.fixSpeed ? 9.5 : qz(pickW([[80, () => rnd(8.5, 10.5)], [10, () => rnd(7.5, 8.5)], [10, () => rnd(10.5, 12)]]), 0.5);
     Object.assign(st, { D, L: clamp(qz(g * Math.sin(ang), 0.25), -4, 4), U: clamp(qz(g * Math.cos(ang), 0.25), -4, 4), stimp });
     if (aRoll() + 5 / 7 * G * st.U / 100 < 0.12) continue;            // 止まらないほどの下りは出さない
     solveRead();
@@ -1879,6 +1951,7 @@ function renderGame() {
   $('gFlatV').textContent = `${st.flatX.toFixed(1)} m`;
   $('gFlat').value = st.flatX;
   $('gAnswer').checked = game.showAnswer; $('gNums').checked = game.nums;
+  $('gClock').checked = game.clock; $('gFix').checked = game.fixSpeed; $('gFlow').checked = st.show.flow;
   // 成績
   const n = game.hist.length, made = game.hist.filter(h => h.res === 'イン').length, ok = game.hist.filter(h => h.pts >= 1).length;
   let streak = 0; for (const h of game.hist) { if (h.res === 'イン') streak++; else break; }
@@ -1900,6 +1973,17 @@ $('gNext').addEventListener('click', nextHole);
 $('gRetry').addEventListener('click', retryHole);
 $('gAnswer').addEventListener('change', () => { game.showAnswer = $('gAnswer').checked; renderGame(); });
 $('gNums').addEventListener('change', () => { game.nums = $('gNums').checked; renderGame(); });
+$('gClock').addEventListener('change', () => { game.clock = st.show.clock = $('gClock').checked; renderGame(); });
+$('gFix').addEventListener('change', () => {
+  game.fixSpeed = $('gFix').checked;
+  // まだ打っていないホールなら、その場で 9.5ft にそろえる
+  if (game.fixSpeed && game.hole && !game.putted && game.hole.stimp !== 9.5) { game.hole.stimp = 9.5; loadHole(game.hole, true); }
+  renderGame();
+});
+$('followBtn').addEventListener('click', () => {
+  st.follow = !st.follow;
+  $('followBtn').classList.toggle('on', st.follow); $('followBtn').setAttribute('aria-pressed', st.follow);
+});
 $('gReset').addEventListener('click', () => { game.hist = []; game.n = 0; nextHole(); });
 $('gHistBtn').addEventListener('click', () => document.body.classList.toggle('histopen'));
 $('gHistClose').addEventListener('click', () => document.body.classList.remove('histopen'));
@@ -1911,7 +1995,7 @@ function setTab(t) {
   if (toGame) {
     game.snap = JSON.parse(JSON.stringify({ D: st.D, L: st.L, U: st.U, stimp: st.stimp, aimCups: st.aimCups, auto: st.auto, touchMode: st.touchMode, flatX: st.flatX, compare: st.compare, show: st.show }));
     game.on = true;
-    st.show = Object.assign({}, st.show, { clock: true, virtual: true, path: true, hide: true, labels: false });
+    st.show = Object.assign({}, st.show, { clock: game.clock, virtual: true, path: true, hide: true, labels: false });
   } else {
     game.on = false;
     const s = game.snap; Object.assign(st, s); st.show = s.show;
@@ -1930,6 +2014,30 @@ window.addEventListener('resize', () => { setCompact(); resize(); });
 if (mqCompact.addEventListener) mqCompact.addEventListener('change', setCompact);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(cv.parentElement);
 initR3();
+/* ---------- タッチ操作の改善（iPhone対策） ---------- */
+// ページ全体のピンチ拡大を止める（グリーン画面のピンチズームは別に動く）
+['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+// ボタンを素早く2回押しても拡大しない
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 350 && e.target.closest('button, label, input[type=checkbox]')) { e.preventDefault(); e.target.click(); }
+  lastTouchEnd = now;
+}, { passive: false });
+// 「左／右」「−／＋」は押しっぱなしで連続して動く
+document.querySelectorAll('.btn.step').forEach(b => {
+  let t1 = 0, t2 = 0, repeated = false;
+  const stop = () => { clearTimeout(t1); clearInterval(t2); };
+  b.addEventListener('pointerdown', () => {
+    repeated = false; stop();
+    t1 = setTimeout(() => { t2 = setInterval(() => { repeated = true; b.click(); }, 85); }, 380);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+  // 連続で動かしたあとの「指を離したときの1回」は数えない
+  b.addEventListener('click', e => { if (repeated && e.isTrusted) { e.stopImmediatePropagation(); repeated = false; } }, true);
+});
+
 setCompact();
 resize();
 recompute();
