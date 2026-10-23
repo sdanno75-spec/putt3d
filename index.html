@@ -80,6 +80,8 @@ canvas:active{cursor:grabbing}
 .h-val{margin-left:auto;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:0}
 .mini-btn{margin-left:auto;padding:3px 10px;font-size:11.5px;letter-spacing:0}
 #gHistBtn,.g-hist-head{display:none}
+body.rounding #gRetry{display:none}
+.btn:disabled{opacity:.4;cursor:default}
 .btn.toggle{color:var(--muted);background:#08180f;font-size:12.5px;padding:7px 10px;white-space:nowrap}
 .btn.toggle.on{color:#062012;background:#9df0b9;border-color:#9df0b9;font-weight:700}
 body.compact .btn.toggle{padding:5px 8px;font-size:12px}
@@ -159,6 +161,7 @@ body.compact .stage-bar .eyectl .btn{padding:5px 8px;font-size:12px}
 body.compact.gaming .legend{display:none}
 body.compact .chip{font-size:11.5px;padding:4px 8px}
 body.compact .chip.big{font-size:13px}
+.tabs{flex-wrap:wrap;row-gap:4px}
 .tabs .hand{margin-left:auto;align-self:center;padding:2px}
 .tabs .hand button{padding:5px 12px;font-size:12.5px;border:0;border-radius:7px;font-weight:700}
 .tabs{max-width:1440px;margin:0 auto;padding:4px 16px 0;display:flex;gap:6px}
@@ -249,6 +252,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="sim" class="on">シミュレーター</button>
   <button type="button" data-tab="game">ゲーム（ライン読み練習）</button>
+  <button type="button" data-tab="round">ラウンド</button>
   <div class="seg hand" id="handSeg" aria-label="利き手"><button type="button" data-hand="L" class="on">左打ち</button><button type="button" data-hand="R">右打ち</button></div>
 </nav>
 
@@ -334,6 +338,8 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
         <label><input autocomplete="off" type="checkbox" id="gFlow" checked>傾斜の矢印</label>
         <label><input autocomplete="off" type="checkbox" id="gClock">時計（入口）</label>
         <label><input autocomplete="off" type="checkbox" id="gFix" checked>速さ 9.5ft 固定</label>
+        <label><input autocomplete="off" type="checkbox" id="gOk" checked>OK（60cm以内）あり（ラウンド）</label>
+        <label><input autocomplete="off" type="checkbox" id="g18">18ホール（次のラウンドから）</label>
       </div>
       <p class="note">傾斜はよくあるゆるい傾斜（0.5〜1.5%）が多めに、しっかりした傾斜（2〜3%）がときどき、きつい傾斜（3.5%以上）がたまに出ます。数値を隠すと、画面の矢印と等高線だけで読む練習になります。</p>
     </div>
@@ -472,7 +478,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     </div>
   </aside>
 </div>
-<footer>v3.2.0（リアル3D版）</footer>
+<footer>v3.3.0（リアル3D版）</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -1946,6 +1952,7 @@ function answerText() {
          `あなた：${cupsText(st.aimCups)}（${aimMsg}）／平らの ${st.flatX.toFixed(1)}m（${touchMsg}）`;
 }
 function gameResult() {
+  if (game.mode === 'round') { roundResult(); return; }
   const s = mine;
   const stopD = s.captured ? 0 : Math.hypot(s.end.x - st.D, s.end.z);
   let pts = 0, cls = 'miss', title;
@@ -1961,7 +1968,9 @@ function gameResult() {
   renderGame();
 }
 function renderGame() {
+  if (game.mode === 'round') { renderRound(); return; }
   if (!game.hole) return;
+  $('gNext').disabled = false; $('gNext').textContent = '次のホール';
   $('gNo').textContent = `第${game.n}問`;
   $('gCond').textContent = holeCond(game.hole, game.nums);
   const total = game.hist.reduce((s, h) => s + h.pts, 0);
@@ -1988,20 +1997,103 @@ function renderGame() {
   $('gHist').innerHTML = n === 0 ? '' : '<tr><th>#</th><th>読み（自分／正解）</th><th>タッチ（自分／正解）</th><th>結果</th></tr>' +
     game.hist.map(h => `<tr title="${h.cond}"><td>${h.n}</td><td>${sideCups(h.my)}／${sideCups(h.ans)}</td><td>${h.myX.toFixed(1)}／${h.ansX.toFixed(1)}m</td><td>${h.res}</td></tr>`).join('');
 }
+
+/* ---------- ラウンド（カップインするまで打ち続ける・1ホール パー2） ---------- */
+game.mode = 'game'; game.rd = null; game.okGimme = true; game.holes18 = false;
+const ROUND_MAX = 8;            // 1ホールの上限打数（終わらなくなるのを防ぐ）
+function newRound() {
+  game.rd = { total: game.holes18 ? 18 : 9, n: 0, card: [], cur: null, first: 0, strokes: 0, pending: null, holeDone: false, over: false, last: null };
+  roundNextHole();
+}
+function roundNextHole() {
+  const rd = game.rd;
+  rd.n++; rd.strokes = 0; rd.pending = null; rd.holeDone = false; rd.last = null;
+  rd.cur = randomHole(); rd.first = rd.cur.D;
+  loadHole(rd.cur, false);
+}
+// 止まった場所から、カップへ向かう新しいラインで傾斜を取り直す（グリーンの面は同じ）
+function remainHole(sim) {
+  const dx = st.D - sim.end.x, dz = -sim.end.z, D2 = Math.hypot(dx, dz) || 0.05;
+  const d = { x: dx / D2, z: dz / D2 }, right = { x: -d.z, z: d.x };
+  const gx = st.U / 100, gz = -st.L / 100;                         // 高さ h = gx*x + gz*z
+  const r2 = v => Math.round(v * 100) / 100;
+  return { D: clamp(r2(D2), 0.05, 25), L: r2(-100 * (gx * right.x + gz * right.z)), U: r2(100 * (gx * d.x + gz * d.z)), stimp: st.stimp };
+}
+function scoreName(n) { return ['', 'バーディー', 'パー', 'ボギー', 'ダブルボギー', 'トリプルボギー'][n] || `+${n - 2}`; }
+function roundResult() {
+  const rd = game.rd, s = mine;
+  rd.strokes++;
+  const stopD = s.captured ? 0 : Math.hypot(s.end.x - st.D, s.end.z);
+  let cls = 'miss', title;
+  if (s.captured) { rd.holeDone = true; cls = 'in'; title = `カップイン：${rd.strokes}パット（${scoreName(rd.strokes)}）`; }
+  else if (game.okGimme && !s.runaway && stopD <= 0.6) { rd.strokes++; rd.holeDone = true; cls = 'ok'; title = `OK（${Math.round(stopD * 100)}cm）：${rd.strokes}パット（${scoreName(rd.strokes)}）`; }
+  else if (rd.strokes >= ROUND_MAX) { rd.holeDone = true; title = `${ROUND_MAX}打で終了（ギブアップ）`; }
+  else { rd.pending = remainHole(s); title = `${missText(s)} → 残り ${rd.pending.D.toFixed(1)}m`; }
+  if (rd.holeDone) {
+    rd.card.push({ n: rd.n, first: rd.first, strokes: rd.strokes });
+    if (rd.n >= rd.total) rd.over = true;
+  }
+  rd.last = { cls, title };
+  renderGame();
+}
+function roundNext() {
+  const rd = game.rd;
+  if (!rd || rd.over) { newRound(); return; }
+  if (rd.holeDone) { roundNextHole(); return; }
+  if (rd.pending) { const h = rd.pending; rd.pending = null; rd.cur = h; rd.last = null; loadHole(h, false); }
+}
+function renderRound() {
+  const rd = game.rd;
+  if (!rd) return;
+  const played = rd.card.length, tot = rd.card.reduce((a, c) => a + c.strokes, 0), diff = tot - played * 2;
+  const diffTxt = diff === 0 ? '±0' : (diff > 0 ? `+${diff}` : `${diff}`);
+  $('gNo').textContent = `${rd.n}/${rd.total}番ホール　${rd.holeDone ? `${rd.strokes}打でホールアウト` : rd.pending ? `${rd.strokes}打目のあと` : `${rd.strokes + 1}打目`}`;
+  $('gCond').textContent = holeCond(rd.cur, game.nums);
+  $('gScore').textContent = `スコア ${diffTxt}（${tot}打）`;
+  const res = $('gRes');
+  if (rd.over) { res.textContent = `ラウンド終了：${tot}打（パー${played * 2}に対して ${diffTxt}）`; res.className = 'g-res in'; }
+  else if (rd.last) { res.textContent = rd.last.title; res.className = 'g-res ' + rd.last.cls; }
+  else { res.textContent = rd.strokes ? '返しのパット：読み直して打つ' : '仮想カップとタッチを決めて「パットを打つ」'; res.className = 'g-res'; }
+  $('gAns').innerHTML = (rd.last || game.showAnswer) ? answerText() : '';
+  const nb = $('gNext');
+  nb.textContent = rd.over ? '新しいラウンド' : rd.pending ? '返しのパットへ' : '次のホールへ';
+  nb.disabled = !(rd.over || rd.holeDone || rd.pending);
+  syncGameControls();
+  // スコアカード
+  const n1 = rd.card.filter(c => c.strokes === 1).length, n2 = rd.card.filter(c => c.strokes === 2).length, n3 = rd.card.filter(c => c.strokes >= 3).length;
+  $('gStats').innerHTML = played === 0 ? `ラウンド ${rd.total}ホール（1ホール パー2）。外したら止まった場所から返しを打ちます。` :
+    `<div class="s1">${played}ホール：1パット ${n1}／2パット ${n2}／3パット以上 ${n3}</div>` +
+    `<div class="s2">平均 ${(tot / played).toFixed(2)} パット／ホール</div>` +
+    `<div class="s3">${rd.card.map(c => `${c.n}番 ${c.strokes}`).join('・')}</div>`;
+  $('gHist').innerHTML = played === 0 ? '' : '<tr><th>ホール</th><th>最初の距離</th><th>打数</th><th>結果</th></tr>' +
+    rd.card.map(c => `<tr><td>${c.n}番</td><td>${c.first.toFixed(1)}m</td><td>${c.strokes}</td><td>${scoreName(c.strokes)}</td></tr>`).join('') +
+    `<tr><td>合計</td><td></td><td>${tot}</td><td>${diffTxt}</td></tr>`;
+}
+function syncGameControls() {
+  $('gAimV').textContent = cupsText(st.aimCups);
+  $('gAim').value = st.aimCups;
+  $('gFlatV').textContent = `${st.flatX.toFixed(1)} m`;
+  $('gFlat').value = st.flatX;
+  $('gAnswer').checked = game.showAnswer; $('gNums').checked = game.nums;
+  $('gClock').checked = game.clock; $('gFix').checked = game.fixSpeed;
+  $('gOk').checked = game.okGimme; $('g18').checked = game.holes18;
+}
 function gameInput() { simulateMine(); revealed = false; resetAnim(); game.last = null; updateUi(); renderGame(); }
 $('gAim').addEventListener('input', () => { st.aimCups = parseFloat($('gAim').value); gameInput(); });
 $('gFlat').addEventListener('input', () => { st.flatX = parseFloat($('gFlat').value); gameInput(); });
 document.querySelectorAll('#gamePanel [data-aim]').forEach(b => b.addEventListener('click', () => { st.aimCups = clamp(Math.round((st.aimCups + parseFloat(b.dataset.aim)) * 10) / 10, -12, 12); gameInput(); }));
 document.querySelectorAll('#gamePanel [data-flat]').forEach(b => b.addEventListener('click', () => { st.flatX = clamp(Math.round((st.flatX + parseFloat(b.dataset.flat)) * 10) / 10, 1, 20); gameInput(); }));
-$('gNext').addEventListener('click', nextHole);
+$('gNext').addEventListener('click', () => (game.mode === 'round' ? roundNext() : nextHole()));
 $('gRetry').addEventListener('click', retryHole);
 $('gAnswer').addEventListener('change', () => { game.showAnswer = $('gAnswer').checked; renderGame(); });
 $('gNums').addEventListener('change', () => { game.nums = $('gNums').checked; renderGame(); });
+$('gOk').addEventListener('change', () => { game.okGimme = $('gOk').checked; });
+$('g18').addEventListener('change', () => { game.holes18 = $('g18').checked; });
 $('gClock').addEventListener('change', () => { game.clock = st.show.clock = $('gClock').checked; renderGame(); });
 $('gFix').addEventListener('change', () => {
   game.fixSpeed = $('gFix').checked;
   // まだ打っていないホールなら、その場で 9.5ft にそろえる
-  if (game.fixSpeed && game.hole && !game.putted && game.hole.stimp !== 9.5) { game.hole.stimp = 9.5; loadHole(game.hole, true); }
+  if (game.mode !== 'round' && game.fixSpeed && game.hole && !game.putted && game.hole.stimp !== 9.5) { game.hole.stimp = 9.5; loadHole(game.hole, true); }
   renderGame();
 });
 $('followBtn').addEventListener('click', () => {
@@ -2013,23 +2105,29 @@ $('gHistBtn').addEventListener('click', () => document.body.classList.toggle('hi
 $('gHistClose').addEventListener('click', () => document.body.classList.remove('histopen'));
 
 function setTab(t) {
-  const toGame = t === 'game';
+  const toGame = t !== 'sim';
   document.querySelectorAll('#tabs [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  if (toGame === game.on) return;
-  if (toGame) {
+  if (toGame && game.on && game.mode === t) return;
+  if (!toGame && !game.on) return;
+  if (toGame && !game.on) {
     game.snap = JSON.parse(JSON.stringify({ D: st.D, L: st.L, U: st.U, stimp: st.stimp, aimCups: st.aimCups, auto: st.auto, touchMode: st.touchMode, flatX: st.flatX, compare: st.compare, show: st.show }));
     game.on = true;
     st.show = Object.assign({}, st.show, { clock: game.clock, virtual: true, path: true, hide: true, labels: false });
-  } else {
+  } else if (!toGame) {
     game.on = false;
     const s = game.snap; Object.assign(st, s); st.show = s.show;
   }
+  if (toGame) game.mode = t;
   document.body.classList.toggle('gaming', toGame);
+  document.body.classList.toggle('rounding', toGame && t === 'round');
   document.body.classList.remove('histopen');
   $('simPanel').hidden = toGame; $('gamePanel').hidden = !toGame;
   $('simReadout').hidden = toGame; $('gameCard').hidden = !toGame;
-  if (toGame) { if (!game.hole) nextHole(); else loadHole(game.hole, false); }
-  else { $('cmpOn').checked = st.compare; recompute(); }
+  if (toGame) {
+    $('gNext').disabled = false; $('gNext').textContent = '次のホール';
+    if (t === 'round') { if (!game.rd) newRound(); else loadHole(game.rd.cur, true); }
+    else { if (!game.hole) nextHole(); else loadHole(game.hole, false); }
+  } else { $('cmpOn').checked = st.compare; recompute(); }
   if (document.body.classList.contains('compact')) dock();
 }
 document.querySelectorAll('#tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
