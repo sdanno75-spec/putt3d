@@ -80,6 +80,9 @@ canvas:active{cursor:grabbing}
 .h-val{margin-left:auto;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:0}
 .mini-btn{margin-left:auto;padding:3px 10px;font-size:11.5px;letter-spacing:0}
 #gHistBtn,.g-hist-head{display:none}
+.next-float{position:absolute;right:10px;bottom:10px;z-index:4}
+body.compact .next-float{right:8px;bottom:8px;padding:9px 16px;font-size:14px}
+body.needsnext #puttBtn{display:none}
 body.rounding #gRetry{display:none}
 .btn:disabled{opacity:.4;cursor:default}
 .btn.toggle{color:var(--muted);background:#08180f;font-size:12.5px;padding:7px 10px;white-space:nowrap}
@@ -133,7 +136,9 @@ body.compact .panel .seg.full button{white-space:normal;font-size:11.5px;padding
 body.compact .panel .checks{grid-template-columns:1fr}
 body.compact .panel .row{flex-wrap:wrap}
 /* ゲーム：右パネルはスクロールなしで全部入れる */
-body.compact #gamePanel{overflow:hidden;gap:8px;padding:8px 10px}
+body.compact #gamePanel{overflow-y:auto;overflow-x:hidden;gap:8px;padding:8px 10px}
+/* 入りきらないときだけスクロール。問題（いちばん上）は動かさない */
+body.compact #gamePanel #gameCard{position:sticky;top:-8px;z-index:3;background:#08180f;box-shadow:0 6px 10px rgba(6,18,12,.9)}
 body.compact #gamePanel .blk h2{margin-bottom:3px;font-size:12px}
 body.compact #gamePanel .h-val{font-size:13px}
 body.compact #gamePanel .scale{display:none}
@@ -263,6 +268,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
       <canvas id="ovl" aria-hidden="true"></canvas>
       <div class="hud" id="hud"></div>
       <div class="hint" id="hint">ドラッグで回転／ホイール・ピンチでズーム</div>
+      <button type="button" class="putt next-float" id="nextFloat" hidden>次へ</button>
     </div>
     <div class="stage-bar">
       <div class="view-ctl">
@@ -478,7 +484,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     </div>
   </aside>
 </div>
-<footer>v3.3.0（リアル3D版）</footer>
+<footer>v3.3.1（リアル3D版）</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -1996,6 +2002,7 @@ function renderGame() {
     `<div class="s3">くせ：読み 平均${Math.abs(avgAim).toFixed(1)}個 ${avgAim < -0.05 ? '少なめ' : avgAim > 0.05 ? '多め' : 'ぴったり'}／タッチ 平均${Math.abs(avgX).toFixed(1)}m ${avgX > 0.05 ? '強め' : avgX < -0.05 ? '弱め' : 'ぴったり'}</div>`;
   $('gHist').innerHTML = n === 0 ? '' : '<tr><th>#</th><th>読み（自分／正解）</th><th>タッチ（自分／正解）</th><th>結果</th></tr>' +
     game.hist.map(h => `<tr title="${h.cond}"><td>${h.n}</td><td>${sideCups(h.my)}／${sideCups(h.ans)}</td><td>${h.myX.toFixed(1)}／${h.ansX.toFixed(1)}m</td><td>${h.res}</td></tr>`).join('');
+  updateNextFloat();
 }
 
 /* ---------- ラウンド（カップインするまで打ち続ける・1ホール パー2） ---------- */
@@ -2068,6 +2075,20 @@ function renderRound() {
   $('gHist').innerHTML = played === 0 ? '' : '<tr><th>ホール</th><th>最初の距離</th><th>打数</th><th>結果</th></tr>' +
     rd.card.map(c => `<tr><td>${c.n}番</td><td>${c.first.toFixed(1)}m</td><td>${c.strokes}</td><td>${scoreName(c.strokes)}</td></tr>`).join('') +
     `<tr><td>合計</td><td></td><td>${tot}</td><td>${diffTxt}</td></tr>`;
+  updateNextFloat();
+}
+// 次にやること（返しのパット・次のホール）は、パット画面の右下に大きく出す
+function updateNextFloat() {
+  let label = null;
+  if (game.on && game.mode === 'round' && game.rd) {
+    const rd = game.rd;
+    label = rd.over ? '新しいラウンド' : rd.holeDone ? '次のホールへ' : rd.pending ? '返しのパットへ' : null;
+  } else if (game.on && game.mode === 'game' && game.putted) label = '次のホール';
+  const nf = $('nextFloat');
+  nf.hidden = !label;
+  if (label) nf.textContent = label;
+  // ラウンドでは、返しを打つ前に元の場所から打ち直せないよう「パットを打つ」を隠す
+  document.body.classList.toggle('needsnext', !!label && game.mode === 'round');
 }
 function syncGameControls() {
   $('gAimV').textContent = cupsText(st.aimCups);
@@ -2084,6 +2105,7 @@ $('gFlat').addEventListener('input', () => { st.flatX = parseFloat($('gFlat').va
 document.querySelectorAll('#gamePanel [data-aim]').forEach(b => b.addEventListener('click', () => { st.aimCups = clamp(Math.round((st.aimCups + parseFloat(b.dataset.aim)) * 10) / 10, -12, 12); gameInput(); }));
 document.querySelectorAll('#gamePanel [data-flat]').forEach(b => b.addEventListener('click', () => { st.flatX = clamp(Math.round((st.flatX + parseFloat(b.dataset.flat)) * 10) / 10, 1, 20); gameInput(); }));
 $('gNext').addEventListener('click', () => (game.mode === 'round' ? roundNext() : nextHole()));
+$('nextFloat').addEventListener('click', () => (game.mode === 'round' ? roundNext() : nextHole()));
 $('gRetry').addEventListener('click', retryHole);
 $('gAnswer').addEventListener('change', () => { game.showAnswer = $('gAnswer').checked; renderGame(); });
 $('gNums').addEventListener('change', () => { game.nums = $('gNums').checked; renderGame(); });
@@ -2128,6 +2150,7 @@ function setTab(t) {
     if (t === 'round') { if (!game.rd) newRound(); else loadHole(game.rd.cur, true); }
     else { if (!game.hole) nextHole(); else loadHole(game.hole, false); }
   } else { $('cmpOn').checked = st.compare; recompute(); }
+  updateNextFloat();
   if (document.body.classList.contains('compact')) dock();
 }
 document.querySelectorAll('#tabs [data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
