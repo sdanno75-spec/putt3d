@@ -346,6 +346,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
         <label><input autocomplete="off" type="checkbox" id="gFix" checked>速さ 9.5ft 固定</label>
         <label><input autocomplete="off" type="checkbox" id="gOk" checked>OK（60cm以内）あり（ラウンド）</label>
         <label><input autocomplete="off" type="checkbox" id="g18">18ホール（次のラウンドから）</label>
+        <label><input autocomplete="off" type="checkbox" id="gLong">ロングパット多め（次のホールから）</label>
       </div>
       <p class="note">傾斜はよくあるゆるい傾斜（0.5〜1.5%）が多めに、しっかりした傾斜（2〜3%）がときどき、きつい傾斜（3.5%以上）がたまに出ます。数値を隠すと、画面の矢印と等高線だけで読む練習になります。</p>
     </div>
@@ -363,12 +364,12 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     <div class="blk" id="gBlkTouch">
       <h2><span class="no">2</span>タッチ（平らなら）<b class="h-val" id="gFlatV">-</b></h2>
       <div class="srow">
-        <button type="button" class="btn step" data-flat="-0.1" aria-label="10cm弱く">−</button>
-        <input autocomplete="off" type="range" id="gFlat" min="1" max="20" step="0.1" value="5" aria-label="平らに換算した距離">
-        <button type="button" class="btn step" data-flat="0.1" aria-label="10cm強く">＋</button>
+        <button type="button" class="btn step" data-flat="-0.1" aria-label="少し弱く">−</button>
+        <input autocomplete="off" type="range" id="gFlat" min="0.1" max="30" step="0.05" value="5" aria-label="平らに換算した距離">
+        <button type="button" class="btn step" data-flat="0.1" aria-label="少し強く">＋</button>
       </div>
-      <div class="scale"><span>1m</span><span>10m</span><span>20m</span></div>
-      <p class="note">いつものタッチ（シミュレーターで決めた「外れたら越える距離」）で、平らなグリーンのこの距離を打つ強さです。−と＋は10cmずつ動きます。</p>
+      <div class="scale"><span>0.1m</span><span>15m</span><span>30m</span></div>
+      <p class="note">いつものタッチ（シミュレーターで決めた「外れたら越える距離」）で、平らなグリーンのこの距離を打つ強さです。−と＋は、2m未満では5cm、それ以上は10cmずつ動きます。</p>
     </div>
 
     <div class="blk" id="gBlkStats">
@@ -431,8 +432,8 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
         </div>
         <div id="flatCtl" class="sub" hidden>
           <div class="row"><span>平らなら何mのつもりで打つ</span><b id="vFlat">-</b></div>
-          <input autocomplete="off" type="range" id="flatRange" min="1" max="20" step="0.1" value="5" aria-label="平らに換算した距離">
-          <div class="scale"><span>1m</span><span>10m</span><span>20m</span></div>
+          <input autocomplete="off" type="range" id="flatRange" min="0.1" max="30" step="0.05" value="5" aria-label="平らに換算した距離">
+          <div class="scale"><span>0.1m</span><span>15m</span><span>30m</span></div>
           <div class="checks sub"><button type="button" class="btn" id="flatFit">正解に合わせる</button></div>
         </div>
         <div class="flat-h sub">この距離・速さ・横の傾斜での換算表</div>
@@ -484,7 +485,7 @@ footer{max-width:1440px;margin:0 auto;padding:0 16px 22px;color:#5f8a71;font-siz
     </div>
   </aside>
 </div>
-<footer>v3.3.1（リアル3D版）</footer>
+<footer>v3.4.0（リアル3D版）</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
@@ -1784,6 +1785,8 @@ const latRange = $('latRange'), longRange = $('longRange'), distRange = $('distR
 const puttBtn = $('puttBtn');
 const eyeCtl = $('eyeCtl'), eyeRange = $('eyeRange'), hint = $('hint');
 
+// 距離の表示：2m未満は 0.65m のように2けた
+function fmtM(x) { return x < 2 ? x.toFixed(2) : x.toFixed(1); }
 function cupsText(c) { return Math.abs(c) < 0.05 ? 'カップの中' : `カップの${c < 0 ? '左' : '右'} ${Math.abs(c).toFixed(1)}個分`; }
 function stimpWord(s) { return s < 8.5 ? '遅い' : s < 10.5 ? 'ふつう' : s < 12 ? '速い' : 'とても速い'; }
 
@@ -1808,7 +1811,7 @@ function renderFlat() {
   document.querySelectorAll('#touchSeg button').forEach(b => b.classList.toggle('on', b.dataset.touch === st.touchMode));
   $('flatCtl').hidden = st.touchMode !== 'flat';
   flatRange.value = st.flatX;
-  $('vFlat').textContent = `${st.flatX.toFixed(1)} m`;
+  $('vFlat').textContent = `${fmtM(st.flatX)} m`;
   $('flatTable').innerHTML = flatRows.map(r => {
     const cur = Math.abs(r.U - st.U) < 0.01 ? ' class="cur"' : '';
     return `<tr${cur}><td>${st.D.toFixed(1)}m の${slopeName(r.U)}</td><td>平らの ${r.X.toFixed(1)}m</td></tr>`;
@@ -1884,7 +1887,7 @@ document.querySelectorAll('#touchSeg button').forEach(b => b.addEventListener('c
   simulateMine(); revealed = false; resetAnim(); updateUi();
 }));
 flatRange.addEventListener('input', () => { st.flatX = parseFloat(flatRange.value); simulateMine(); revealed = false; resetAnim(); updateUi(); });
-$('flatFit').addEventListener('click', () => { st.flatX = clamp(Math.round(flatEq(read.v0) * 10) / 10, 1, 20); simulateMine(); revealed = false; resetAnim(); updateUi(); });
+$('flatFit').addEventListener('click', () => { st.flatX = clamp(Math.round(flatEq(read.v0) * 100) / 100, 0.1, 30); simulateMine(); revealed = false; resetAnim(); updateUi(); });
 $('cmpOn').addEventListener('change', () => { st.compare = $('cmpOn').checked; $('cmpOwnRow').hidden = !st.compare; recompute(); });
 $('cmpOwn').addEventListener('change', () => { st.compareOwn = $('cmpOwn').checked; recompute(); });
 document.querySelectorAll('#rateSeg button').forEach(b => b.addEventListener('click', () => {
@@ -1916,20 +1919,31 @@ function pickW(list) {
 // 一般的なコースに多い条件ほど出やすくする
 function randomHole() {
   for (let tries = 0; tries < 40; tries++) {
-    const D = qz(pickW([[20, () => rnd(2, 3)], [50, () => rnd(3, 6)], [22, () => rnd(6, 9)], [8, () => rnd(9, 12)]]), 0.5);
+    const D = qz(game.longPutt
+      ? pickW([[20, () => rnd(6, 9)], [45, () => rnd(9, 13)], [35, () => rnd(13, 18)]])     // ロングパット多め
+      : pickW([[20, () => rnd(2, 3)], [50, () => rnd(3, 6)], [22, () => rnd(6, 9)], [8, () => rnd(9, 12)]]), 0.5);
     const g = pickW([[75, () => rnd(0.5, 1.5)], [20, () => rnd(2, 3)], [5, () => rnd(3.5, 4)]]);   // 傾斜の強さ（%）
     const ang = Math.random() * Math.PI * 2;                                                       // 傾斜の向き
     const stimp = game.fixSpeed ? 9.5 : qz(pickW([[80, () => rnd(8.5, 10.5)], [10, () => rnd(7.5, 8.5)], [10, () => rnd(10.5, 12)]]), 0.5);
     Object.assign(st, { D, L: clamp(qz(g * Math.sin(ang), 0.25), -4, 4), U: clamp(qz(g * Math.cos(ang), 0.25), -4, 4), stimp });
     if (aRoll() + 5 / 7 * G * st.U / 100 < 0.12) continue;            // 止まらないほどの下りは出さない
     solveRead();
-    if (Math.abs(read.cups) > 11.5 || !read.holed.captured) continue;
+    if (Math.abs(read.cups) > aimMax() - 0.5 || !read.holed.captured) continue;
     return { D: st.D, L: st.L, U: st.U, stimp: st.stimp };
   }
   return { D: 5, L: 1, U: 0, stimp: 9.5 };
 }
+// 仮想カップの範囲（長いパットほど大きく曲がるので広げる）
+function aimMax() { return clamp(Math.ceil(st.D * 2.4), 12, 40); }
+function setAimRange() {
+  const m = aimMax();
+  $('gAim').min = -m; $('gAim').max = m;
+  const sc = document.querySelector('#gBlkAim .scale');
+  if (sc) sc.innerHTML = `<span>左 ${m}個分</span><span>カップ</span><span>右 ${m}個分</span>`;
+}
 function loadHole(h, keepRead) {
   Object.assign(st, h);
+  setAimRange();
   st.auto = false; st.touchMode = 'flat'; st.compare = false;
   if (!keepRead) { st.aimCups = 0; st.flatX = st.D; }      // 最初は「まっすぐ・実際の距離」から
   recompute();
@@ -1954,8 +1968,8 @@ function answerText() {
   else aimMsg = da < 0 ? `${Math.abs(da).toFixed(1)}個 少なく読んだ（内側を狙いすぎ）` : `${da.toFixed(1)}個 多く読んだ（外側を狙いすぎ）`;
   const dt = st.flatX - ax;
   const touchMsg = Math.abs(dt) < 0.15 ? 'ほぼぴったり' : `${Math.abs(dt).toFixed(1)}m ${dt > 0 ? '強め' : '弱め'}`;
-  return `正解：仮想カップ <b>${cupsText(read.cups)}</b>／タッチ <b>平らの ${ax.toFixed(1)}m</b>（入口 ${clockText(read.entryH || 6)}）<br>` +
-         `あなた：${cupsText(st.aimCups)}（${aimMsg}）／平らの ${st.flatX.toFixed(1)}m（${touchMsg}）`;
+  return `正解：仮想カップ <b>${cupsText(read.cups)}</b>／タッチ <b>平らの ${fmtM(ax)}m</b>（入口 ${clockText(read.entryH || 6)}）<br>` +
+         `あなた：${cupsText(st.aimCups)}（${aimMsg}）／平らの ${fmtM(st.flatX)}m（${touchMsg}）`;
 }
 function gameResult() {
   if (game.mode === 'round') { roundResult(); return; }
@@ -1987,7 +2001,7 @@ function renderGame() {
   $('gAns').innerHTML = (game.last || game.showAnswer) ? answerText() : '';
   $('gAimV').textContent = cupsText(st.aimCups);
   $('gAim').value = st.aimCups;
-  $('gFlatV').textContent = `${st.flatX.toFixed(1)} m`;
+  $('gFlatV').textContent = `${fmtM(st.flatX)} m`;
   $('gFlat').value = st.flatX;
   $('gAnswer').checked = game.showAnswer; $('gNums').checked = game.nums;
   $('gClock').checked = game.clock; $('gFix').checked = game.fixSpeed; $('gFlow').checked = st.show.flow;
@@ -2006,7 +2020,7 @@ function renderGame() {
 }
 
 /* ---------- ラウンド（カップインするまで打ち続ける・1ホール パー2） ---------- */
-game.mode = 'game'; game.rd = null; game.okGimme = true; game.holes18 = false;
+game.mode = 'game'; game.rd = null; game.okGimme = true; game.holes18 = false; game.longPutt = false;
 const ROUND_MAX = 8;            // 1ホールの上限打数（終わらなくなるのを防ぐ）
 function newRound() {
   game.rd = { total: game.holes18 ? 18 : 9, n: 0, card: [], cur: null, first: 0, strokes: 0, pending: null, holeDone: false, over: false, last: null };
@@ -2093,17 +2107,21 @@ function updateNextFloat() {
 function syncGameControls() {
   $('gAimV').textContent = cupsText(st.aimCups);
   $('gAim').value = st.aimCups;
-  $('gFlatV').textContent = `${st.flatX.toFixed(1)} m`;
+  $('gFlatV').textContent = `${fmtM(st.flatX)} m`;
   $('gFlat').value = st.flatX;
   $('gAnswer').checked = game.showAnswer; $('gNums').checked = game.nums;
   $('gClock').checked = game.clock; $('gFix').checked = game.fixSpeed;
-  $('gOk').checked = game.okGimme; $('g18').checked = game.holes18;
+  $('gOk').checked = game.okGimme; $('g18').checked = game.holes18; $('gLong').checked = game.longPutt;
 }
 function gameInput() { simulateMine(); revealed = false; resetAnim(); game.last = null; updateUi(); renderGame(); }
 $('gAim').addEventListener('input', () => { st.aimCups = parseFloat($('gAim').value); gameInput(); });
 $('gFlat').addEventListener('input', () => { st.flatX = parseFloat($('gFlat').value); gameInput(); });
-document.querySelectorAll('#gamePanel [data-aim]').forEach(b => b.addEventListener('click', () => { st.aimCups = clamp(Math.round((st.aimCups + parseFloat(b.dataset.aim)) * 10) / 10, -12, 12); gameInput(); }));
-document.querySelectorAll('#gamePanel [data-flat]').forEach(b => b.addEventListener('click', () => { st.flatX = clamp(Math.round((st.flatX + parseFloat(b.dataset.flat)) * 10) / 10, 1, 20); gameInput(); }));
+document.querySelectorAll('#gamePanel [data-aim]').forEach(b => b.addEventListener('click', () => { st.aimCups = clamp(Math.round((st.aimCups + parseFloat(b.dataset.aim)) * 10) / 10, -aimMax(), aimMax()); gameInput(); }));
+document.querySelectorAll('#gamePanel [data-flat]').forEach(b => b.addEventListener('click', () => {
+  const step = st.flatX < 2 ? 0.05 : 0.1;                // 短いパットほど細かく
+  st.flatX = clamp(Math.round((st.flatX + Math.sign(parseFloat(b.dataset.flat)) * step) * 100) / 100, 0.1, 30);
+  gameInput();
+}));
 $('gNext').addEventListener('click', () => (game.mode === 'round' ? roundNext() : nextHole()));
 $('nextFloat').addEventListener('click', () => (game.mode === 'round' ? roundNext() : nextHole()));
 $('gRetry').addEventListener('click', retryHole);
@@ -2111,6 +2129,7 @@ $('gAnswer').addEventListener('change', () => { game.showAnswer = $('gAnswer').c
 $('gNums').addEventListener('change', () => { game.nums = $('gNums').checked; renderGame(); });
 $('gOk').addEventListener('change', () => { game.okGimme = $('gOk').checked; });
 $('g18').addEventListener('change', () => { game.holes18 = $('g18').checked; });
+$('gLong').addEventListener('change', () => { game.longPutt = $('gLong').checked; });
 $('gClock').addEventListener('change', () => { game.clock = st.show.clock = $('gClock').checked; renderGame(); });
 $('gFix').addEventListener('change', () => {
   game.fixSpeed = $('gFix').checked;
